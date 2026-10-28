@@ -107,15 +107,14 @@ export const register: Register = on => {
   on('agent.offer', { agent: AGENT }, () => ({ isOffered: false }))
 
   // In auto mode the classifier gives no verdict on a subagent no user request launched,
-  // so the verifier never started. When the engine refuses this launch only (the verifier
-  // spawned by this plugin), the user is asked instead. Every other decision is unchanged.
-  on('tool.check', { tool: 'Agent' }, async ($, e, next) => {
-    const r = await next(e)
+  // so the verifier never started. The launch of this plugin's own verifier always asks
+  // the user. Every other decision is left to Claude Code.
+  on('tool.check', { tool: 'Agent' }, ($, e, next) => {
     const i = (e.input ?? {}) as Record<string, unknown>
-    if (r.decision === 'deny' && next.origin.plugin === 'dent-send-guard' && (i.subagent_type ?? i.subagentType) === AGENT) {
+    if (next.origin.plugin === 'dent-send-guard' && (i.subagent_type ?? i.subagentType) === AGENT) {
       return { decision: 'ask', reason: 'send-guard: launch its context-free verifier on this email?' }
     }
-    return r
+    return next(e)
   })
 
   // Truly context-free: text other plugins inject into every subagent (SubagentStart) does not reach it.
