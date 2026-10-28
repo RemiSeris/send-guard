@@ -1,0 +1,17 @@
+{
+  "name": "dent-send-guard",
+  "owner": {
+    "name": "Rémi Séris (Make a Dent)",
+    "url": "https://github.com/RemiSeris"
+  },
+  "plugins": [
+    {
+      "name": "dent-send-guard",
+      "source": "./",
+      "description": "No email leaves until a context-free verifier has read its exact version and you said yes. / Aucun mail ne part sans vérification et sans ton oui."
+    }
+  ],
+  "metadata": {
+    "description": "Send Guard by Make a Dent — email guardrail for Claude Code (EN/FR)."
+  }
+}
