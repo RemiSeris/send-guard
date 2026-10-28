@@ -9,6 +9,7 @@ function engine(on: any, answer?: string | null) {
   const asked: any[] = []
   on('store.get', (_: unknown, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_: unknown, e: any) => { store.set(e.key, e.value); return { value: undefined } })
+  on('store.delete', (_: unknown, e: any) => { store.delete(e.key); return { value: undefined } })
   on('agent.register', () => ({ value: { agent: 'dent-send-guard:verifier' } }))
   on('tool.register', () => ({ value: { tool: 'mcp__dent-send-guard__verify_send' } }))
   on('agent.spawn', () => ({ model: 'm', agentId: 'verif-1', value: { model: 'm', agentId: 'verif-1' } }))
@@ -70,6 +71,34 @@ test('nobody to answer (scheduled task, -p): refused', async ($, on) => {
   const r = await $.tool.call({ tool: SEND, ...MAIL } as any)
   expect(r.deny ?? r.text).toMatch(/did not say yes/)
   expect(m.sent.length).toBe(0)
+})
+
+// The test bench gives the plugin no agent id from a spawn: seed what verify_send leaves.
+test('verification started: send refused until the verdict is in, then it passes', async ($, on) => {
+  const m = engine(on, 'Send / Envoyer')
+  const h = await fingerprint(SEND, MAIL)
+  m.store.set('waiting:verif-1', { h, rec: { when: 'x', tool: SEND, to: MAIL.to } })
+  m.store.set(`pending:${h}`, 'verif-1')
+  await $.session.start(START as any)
+  const r = await $.tool.call({ tool: SEND, ...MAIL } as any)
+  expect(r.deny ?? r.text).toMatch(/in progress/)
+  await $.turn.complete({ agentId: 'verif-1', answer: 'VERDICT: OK' } as any)
+  expect((m.store.get(`verified:${h}`) as any)?.verdict).toBe('VERDICT: OK')
+  expect(m.store.has(`pending:${h}`) || m.store.has('waiting:verif-1')).toBe(false)
+  await $.tool.call({ tool: SEND, ...MAIL } as any)
+  expect(m.sent.length).toBe(1)
+})
+
+// The allow only holds for a launch by send-guard itself ($.agent.spawn): the bench
+// cannot play that origin, it is checked for real after install.
+test('outside send-guard, launching the verifier (or another agent) keeps the engine\'s decision', async ($, on) => {
+  engine(on)
+  on('tool.check', () => ({ decision: 'deny', reason: 'no verdict' }))
+  await $.session.start(START as any)
+  const v = await $.tool.check({ tool: 'Agent', input: { subagent_type: 'dent-send-guard:verifier', prompt: 'x', description: 'v' } })
+  expect(v.decision).toBe('deny')
+  const other = await $.tool.check({ tool: 'Agent', input: { subagent_type: 'general-purpose', prompt: 'x', description: 'v' } })
+  expect(other.decision).toBe('deny')
 })
 
 test('sending a draft by id is refused', async ($, on) => {

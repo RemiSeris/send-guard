@@ -77,8 +77,6 @@ function argsOf(e: Record<string, unknown>): Record<string, unknown> {
 }
 
 export const register: Register = on => {
-  const waiting = new Map<string, (t: string) => void>()
-
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     await $.agent.register({
@@ -90,7 +88,7 @@ export const register: Register = on => {
     })
     await $.tool.register({
       name: 'verify_send',
-      description: 'Pass an outgoing email to the context-free verifier, before sending. Give the EXACT arguments of the send: a send that differs from the verified version is refused. Returns the verdict (a hint, not a veto). / Passe un mail au vérificateur sans contexte avant envoi, avec les arguments EXACTS de l\'envoi.',
+      description: 'Pass an outgoing email to the context-free verifier, before sending. Give the EXACT arguments of the send: a send that differs from the verified version is refused. The verdict (a hint, not a veto) comes back as the verifier\'s report. / Passe un mail au vérificateur sans contexte avant envoi, avec les arguments EXACTS de l\'envoi.',
       isDeferred: false,
       inputSchema: {
         type: 'object',
@@ -108,16 +106,31 @@ export const register: Register = on => {
 
   on('agent.offer', { agent: AGENT }, () => ({ isOffered: false }))
 
+  // In auto mode the classifier gives no verdict on a subagent no user request launched,
+  // so the verifier never started. Allow only this launch: the verifier spawned by this
+  // plugin. Any other Agent call keeps the engine's decision.
+  on('tool.check', { tool: 'Agent' }, ($, e, next) => {
+    const i = (e.input ?? {}) as Record<string, unknown>
+    if (next.origin.plugin === 'dent-send-guard' && (i.subagent_type ?? i.subagentType) === AGENT) {
+      return { decision: 'allow', reason: 'send-guard: its own verifier' }
+    }
+    return next(e)
+  })
+
   // Truly context-free: text other plugins inject into every subagent (SubagentStart) does not reach it.
   on('classic.SubagentStart', async ($, e, next) => {
     const r = await next(e)
     return e.agent_type === AGENT ? { ...r, additionalContext: [] } : r
   })
 
-  on('turn.complete', ($, e, next) => {
-    if (e.agentId && waiting.has(e.agentId)) {
-      waiting.get(e.agentId)!(e.answer)
-      waiting.delete(e.agentId)
+  // The verdict is stored when the verifier finishes, not in verify_send: a hook only has
+  // 10 s of its own, and waiting for the verdict went past it.
+  on('turn.complete', async ($, e, next) => {
+    const w = e.agentId ? (await $.store.get(`waiting:${e.agentId}`)) as { h: string; rec: Omit<Rec, 'verdict'> } | undefined : undefined
+    if (w) {
+      await $.store.set(`verified:${w.h}`, { ...w.rec, verdict: e.answer })
+      await $.store.delete(`waiting:${e.agentId}`)
+      await $.store.delete(`pending:${w.h}`)
     }
     return next(e)
   })
@@ -149,11 +162,12 @@ export const register: Register = on => {
     const sp = await $.agent.spawn({ subagentType: AGENT, prompt: text, description: 'check before sending' }) as { agentId?: string; deny?: string }
     const { agentId, deny } = sp
     if (deny || !agentId) return { deny: `send-guard: verifier not launched (${deny ?? 'no id'}) / vérificateur non lancé` }
-    const verdict = await new Promise<string>(res => waiting.set(agentId, res))
     const h = await fingerprint(sendTool, a)
-    const rec: Rec = { when: new Date().toISOString(), tool: sendTool, to: [...list(a.to), ...list(a.cc), ...list(a.bcc)], verdict }
-    await $.store.set(`verified:${h}`, rec)
-    return { result: `Fingerprint saved: ${h.slice(0, 12)}…\nAny edit to the text needs a new pass. / Toute retouche demande un nouveau passage.\n\n${verdict}` }
+    const rec = { when: new Date().toISOString(), tool: sendTool, to: [...list(a.to), ...list(a.cc), ...list(a.bcc)] }
+    await $.store.set(`waiting:${agentId}`, { h, rec })
+    // Note: a verifier that dies without turn.complete leaves "pending"; calling verify_send again overwrites it.
+    await $.store.set(`pending:${h}`, agentId)
+    return { result: `Verification started (fingerprint ${h.slice(0, 12)}…). The verdict comes back as the verifier's report: read it before sending. This exact version passes the gate once the verdict is in; any edit to the text needs a new pass. / Vérification lancée : lire le rapport du vérificateur avant d'envoyer ; toute retouche demande un nouveau passage.` }
   })
 
   // The gate: every send must match a verified version, then get the user's yes.
@@ -173,6 +187,10 @@ export const register: Register = on => {
       const to = recipientsOf(tool, a)
       const h = await fingerprint(tool, a)
       const rec = (await $.store.get(`verified:${h}`)) as Rec | undefined
+      if (!rec && await $.store.get(`pending:${h}`)) {
+        await log(`refused: verification in progress (${to.join(', ')})`)
+        return { deny: `send-guard: the check of this version is in progress. Wait for the verifier's report, read it, then send again; with no report, call ${VERIFY_TOOL} again. / Vérification en cours : attendre le rapport du vérificateur.` }
+      }
       if (!rec) {
         await log(`refused: not verified (${to.join(', ')})`)
         return { deny: `send-guard: this version has not been through the verifier. Call ${VERIFY_TOOL} with exactly the same arguments, read the verdict, then send again. / Cette version n'est pas passée par le vérificateur. (Recipients / Destinataires : ${to.join(', ')})` }
