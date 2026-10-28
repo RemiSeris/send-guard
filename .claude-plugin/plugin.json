@@ -1,7 +1,7 @@
 {
   "name": "dent-send-guard",
   "displayName": "Send Guard by Make a Dent",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "No email leaves Claude Code until a context-free verifier has read its exact version and you said yes. / Aucun mail ne part de Claude Code sans qu'un vérificateur sans contexte ait lu sa version exacte et que tu aies dit oui.",
   "author": {
     "name": "Rémi Séris (Make a Dent)",

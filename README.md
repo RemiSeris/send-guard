@@ -31,6 +31,13 @@ It adds one tool, `verify_send`, that Claude calls before sending. Every decisio
 - The verifier is only as good as the sources Claude gives it.
 - Every send asks for your yes, including emails to yourself.
 
+## What each hook decides
+
+- **Send calls** (`send_message`, `reply`, `forward` on any server): refused unless the exact version was verified and you said yes; otherwise passed on unchanged.
+- **`verify_send`**: the plugin's own tool, answered by the plugin itself. It hands the verifier the email exactly as it will be sent (recipients, subject, bodies, readable attachments), what Claude says about the recipient, and the sources Claude gives. Nothing else from your conversation. The verifier has no tools, so it cannot carry that text anywhere.
+- **Permission check on `Agent`**: only when Claude Code refuses the launch of send-guard's own verifier (auto mode can do this, since no request of yours started it), you are asked instead. It never allows anything by itself and leaves every other decision as it is.
+- **Subagent start**: text other plugins add to every subagent is removed for the verifier only, so it stays context-free. The verifier is also hidden from Claude's list of agents.
+
 ## What it does with your data
 
 It reads only the arguments of send calls, to block them or let them through. The verifier runs inside your own Claude Code session with no tools. Nothing is sent anywhere else; the fingerprints and the log stay on your machine.
@@ -73,6 +80,13 @@ Il ajoute un outil, `verify_send`, que Claude appelle avant d'envoyer. Chaque d�
 - Il couvre les connecteurs de type Gmail (outils nommés `send_message`, `reply`, `forward`), quel que soit le nom du serveur. Un mail envoyé autrement (navigateur, autre appli) n'est pas vu.
 - Le vérificateur ne vaut que par les sources que Claude lui donne.
 - Chaque envoi demande ton oui, y compris un mail à toi-même.
+
+### Ce que décide chaque hook
+
+- **Appels d'envoi** (`send_message`, `reply`, `forward`, quel que soit le serveur) : refusés sauf si la version exacte a été vérifiée et que tu as dit oui ; sinon transmis sans changement.
+- **`verify_send`** : l'outil du plugin, auquel le plugin répond lui-même. Il donne au vérificateur le mail exactement tel qu'il partira (destinataires, objet, corps, pièces jointes lisibles), ce que Claude dit du destinataire et les sources que Claude fournit. Rien d'autre de ta conversation. Le vérificateur n'a aucun outil : il ne peut emporter ce texte nulle part.
+- **Vérification de permission sur `Agent`** : seulement quand Claude Code refuse le lancement du vérificateur de send-guard (le mode auto peut le faire, puisqu'aucune demande de ta part ne l'a lancé), la question t'est posée à la place. Il n'autorise jamais rien de lui-même et laisse toute autre décision telle quelle.
+- **Démarrage d'un sous-agent** : le texte que d'autres plugins ajoutent à chaque sous-agent est retiré pour le vérificateur seul, pour qu'il reste sans contexte. Le vérificateur est aussi masqué de la liste des agents de Claude.
 
 ### Ce qu'il fait de tes données
 

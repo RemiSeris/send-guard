@@ -89,7 +89,7 @@ test('verification started: send refused until the verdict is in, then it passes
   expect(m.sent.length).toBe(1)
 })
 
-// The allow only holds for a launch by send-guard itself ($.agent.spawn): the bench
+// The deny-to-ask only holds for a launch by send-guard itself ($.agent.spawn): the bench
 // cannot play that origin, it is checked for real after install.
 test('outside send-guard, launching the verifier (or another agent) keeps the engine\'s decision', async ($, on) => {
   engine(on)
