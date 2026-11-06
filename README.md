@@ -34,9 +34,10 @@ It adds one tool, `verify_send`, that Claude calls before sending. Every decisio
 ## What each hook decides
 
 - **Send calls** (`send_message`, `reply`, `forward` on any server): refused unless the exact version was verified and you said yes; otherwise passed on unchanged.
-- **`verify_send`**: the plugin's own tool, answered by the plugin itself. It hands the verifier the email exactly as it will be sent (recipients, subject, bodies, readable attachments), what Claude says about the recipient, and the sources Claude gives. Nothing else from your conversation. The verifier has no tools, so it cannot carry that text anywhere.
+- **`verify_send`**: the plugin's own tool, answered by the plugin itself every time Claude calls it (it stands in for no other tool). It hands the verifier the email exactly as it will be sent (recipients, subject, bodies, readable attachments), what Claude says about the recipient, and the sources Claude gives. Nothing else from your conversation. The verifier has no tools, so it cannot carry that text anywhere.
 - **Permission check on `Agent`**: the launch of send-guard's own verifier always asks you first (without it, auto mode can refuse the launch, since no request of yours started it). It never allows anything by itself and leaves every other decision to Claude Code. So each email asks twice: once to check it, once to send it.
-- **Subagent start**: text other plugins add to every subagent is removed for the verifier only, so it stays context-free. The verifier is also hidden from Claude's list of agents.
+- **Subagent start**: text other plugins add to every subagent is removed for the verifier only, so it stays context-free. Every other subagent starts unchanged.
+- **Agent list**: the verifier is hidden from the list of agents Claude may pick, so only `verify_send` launches it. Nothing else in the list, your settings or your instructions is changed.
 
 ## What it does with your data
 
@@ -84,9 +85,10 @@ Il ajoute un outil, `verify_send`, que Claude appelle avant d'envoyer. Chaque d�
 ### Ce que décide chaque hook
 
 - **Appels d'envoi** (`send_message`, `reply`, `forward`, quel que soit le serveur) : refusés sauf si la version exacte a été vérifiée et que tu as dit oui ; sinon transmis sans changement.
-- **`verify_send`** : l'outil du plugin, auquel le plugin répond lui-même. Il donne au vérificateur le mail exactement tel qu'il partira (destinataires, objet, corps, pièces jointes lisibles), ce que Claude dit du destinataire et les sources que Claude fournit. Rien d'autre de ta conversation. Le vérificateur n'a aucun outil : il ne peut emporter ce texte nulle part.
+- **`verify_send`** : l'outil du plugin, auquel le plugin répond lui-même à chaque appel de Claude (il ne remplace aucun autre outil). Il donne au vérificateur le mail exactement tel qu'il partira (destinataires, objet, corps, pièces jointes lisibles), ce que Claude dit du destinataire et les sources que Claude fournit. Rien d'autre de ta conversation. Le vérificateur n'a aucun outil : il ne peut emporter ce texte nulle part.
 - **Vérification de permission sur `Agent`** : le lancement du vérificateur de send-guard te demande toujours ton accord (sans ça, le mode auto peut refuser le lancement, puisqu'aucune demande de ta part ne l'a lancé). Il n'autorise jamais rien de lui-même et laisse toute autre décision à Claude Code. Chaque mail demande donc deux fois : pour le vérifier, puis pour l'envoyer.
-- **Démarrage d'un sous-agent** : le texte que d'autres plugins ajoutent à chaque sous-agent est retiré pour le vérificateur seul, pour qu'il reste sans contexte. Le vérificateur est aussi masqué de la liste des agents de Claude.
+- **Démarrage d'un sous-agent** : le texte que d'autres plugins ajoutent à chaque sous-agent est retiré pour le vérificateur seul, pour qu'il reste sans contexte. Les autres sous-agents démarrent sans changement.
+- **Liste des agents** : le vérificateur est masqué de la liste des agents que Claude peut choisir, pour que seul `verify_send` le lance. Rien d'autre n'est changé dans la liste, tes réglages ou tes instructions.
 
 ### Ce qu'il fait de tes données
 
